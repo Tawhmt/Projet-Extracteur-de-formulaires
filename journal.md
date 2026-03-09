@@ -1,4 +1,4 @@
-# 📓 Journal de Développement — Projet 13 : Extracteur de Formulaires
+# 📓 Journal de Développement: Extracteur de Formulaires
 
 ---
 
