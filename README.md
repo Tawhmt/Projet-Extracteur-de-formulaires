@@ -85,7 +85,7 @@ Document Input (PDF / Email / Texte)
    ├── Dates    → YYYY-MM-DD
    ├── Montants → float (2500.00)
    ├── Tél      → +33XXXXXXXXX
-   └── ✅ Valide / 🔴 Invalide / ❌ Absent
+   └── Valide / Invalide /  Absent
         ↓
 8. Stockage double
    ├── JSON dans data/processed/  (traçabilité)
@@ -107,4 +107,8 @@ Document Input (PDF / Email / Texte)
 - Certains documents peuvent être mal formatés ou contenir des informations incomplètes
 - L'extraction exacte des champs peut être difficile si le texte est ambigu
 - Vérification de la cohérence des données pour tous les types de formulaires
-- Gestion des fichiers multiples et suivi des documents traités
+- Gestion des fichiers multiples et suivi des documents traitésgit add README.md JOURNAL.md
+git commit -m "docs: maj session 2"
+git push
+
+
