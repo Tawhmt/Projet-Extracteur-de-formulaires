@@ -53,3 +53,27 @@ Comme vous a mentionné qu'il faut avoir une vraie BDD, j'ai pensé à un double
 **Ce qui a échoué :** Vouloir tout détecter par regex — impossible sur le texte libre, il faut accepter les limites et passer la main à l'IA.
 
 **Apprentissage :** Les regex sont fiables uniquement sur des formats prévisibles. La séparation en deux types de patterns (universels vs Label:Valeur) permet de couvrir les deux cas sans mélanger les responsabilités.
+
+Session 3 — Pipeline RAG, Groq et normalisation
+Objectif : Orchestrer le pipeline complet, intégrer Groq et normaliser les formats
+Prompt utilisé :
+
+"Crée pipeline.py qui orchestre : lecture → nettoyage → regex → Groq → fusion → normalisation → validation → sauvegarde. Comment éviter que le regex envoie une mauvaise valeur à Groq et fausse l'extraction ?"
+
+Ce qui a été fait :
+
+pipeline.py : orchestration des 8 étapes
+retriever.py : construction du prompt Groq avec stratégie de préfill sélectif
+normalizer.py : normalisation dates → ISO 8601, montants → float, téléphones → E.164
+database.py : architecture SQLite avec fonctions CRUD
+
+Problème majeur — prompt poisoning :
+Le regex détectait "Dossier" et l'envoyait à Groq en préfill → Groq faisait confiance et retournait "Dossier" au lieu de "REF-2025-00312". C'est exactement le piège que le prof avait mentionné sur la combinaison regex + LLM.
+Solution : Séparation stricte des responsabilités — seuls les champs fiables à 100% sont préfillés à Groq, les champs complexes sont laissés entièrement à Groq sans préfill.
+Problème 2 : Groq retournait null pour les emails invalides car il "savait" que c'était invalide.
+Solution : Instruction explicite dans le prompt : extraire toujours la valeur brute même si invalide, c'est le normalizer qui valide.
+Problème 3 : Montant "1200 EUR" non détecté — le regex attendait max 3 chiffres.
+Solution : Remplacé \d{1,3} par \d+ pour accepter n'importe quelle longueur.
+Ce qui a marché : temperature=0.0 rend Groq complètement déterministe — essentiel pour l'extraction structurée.
+Ce qui a échoué : Vouloir que Groq fasse la validation en plus de l'extraction — il faut séparer les deux rôles.
+Apprentissage : Le LLM extrait, le code valide — chaque composant a un rôle précis et ne doit pas empiéter sur l'autre. La combinaison regex + LLM est puissante mais dangereuse si mal orchestrée.
