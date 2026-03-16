@@ -28,6 +28,7 @@ import config
 from src.extractors.pdf_extractor import extract_text_from_pdf
 from src.extractors.email_extractor import extract_text_from_email, extract_text_from_raw_email
 from src.extractors.text_extractor import clean_text, regex_extract_fields, extract_text_from_file
+from src.extractors.image_extractor import extract_text_from_image
 from src.rag.retriever import build_prompt, REGEX_RELIABLE_FIELDS
 from src.rag.vectorstore import validate_and_store
 from src.normalizer import normalize_all
@@ -128,6 +129,8 @@ def _load_source(source, source_type: str) -> str:
 
     if source_type == "pdf" or ext == ".pdf":
         return extract_text_from_pdf(path)
+    elif source_type == "image" or ext in (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"):
+        return extract_text_from_image(path)
     elif source_type == "email" or ext in (".eml", ".msg"):
         return extract_text_from_email(path)
     else:

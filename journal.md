@@ -86,3 +86,88 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 **Ce qui a échoué :** Vouloir que Groq fasse la validation en plus de l'extraction — il faut séparer les deux rôles.
 
 **Apprentissage :** Le LLM extrait, le code valide — chaque composant a un rôle précis et ne doit pas empiéter sur l'autre. La combinaison regex + LLM est puissante mais dangereuse si mal orchestrée.
+
+---
+
+## Session 4 — Interface Streamlit et validation d'exécution
+
+**Objectif :** Finaliser l'interface utilisateur et vérifier que l'application démarre correctement
+
+**Prompt utilisé :**
+> "Je veux une interface Streamlit claire en 3 zones : source document, résultats extraits, historique, avec un style cohérent et des logs lisibles."
+
+**Ce qui a été fait :**
+- Finalisation de `app.py` avec un dashboard en 3 zones
+- Intégration des entrées multi-sources : PDF, email collé, texte libre
+- Affichage des statuts champs (valide, invalide, absent) + export JSON/CSV
+- Affichage de l'historique SQLite dans l'interface
+
+**Problème 1 :** Erreur `ModuleNotFoundError: No module named 'pdfplumber'` au lancement.
+**Solution :** Installation de `pdfplumber` dans l'environnement virtuel actif.
+
+**Problème 2 :** `streamlit` absent dans le venv pendant les essais de relance.
+**Solution :** Installation du package puis relance avec l'interpréteur complet du venv.
+
+**Problème 3 :** Port déjà utilisé sur certains runs.
+**Solution :** Test sur port alternatif (`8503`) pour confirmer que l'app démarre bien.
+
+**Ce qui a marché :** L'application démarre et sert bien l'interface.
+**Ce qui a échoué :** Lancement direct sans vérifier toutes les dépendances du venv avant run.
+
+**Apprentissage :** Toujours lancer l'app avec l'interpréteur du venv explicite pour éviter les confusions d'environnement.
+
+---
+
+## Session 5 — Complétion des tests et stabilisation
+
+**Objectif :** Compléter la suite de tests sans modifier la logique applicative existante
+
+**Prompt utilisé :**
+> "Complète les tests sans changer le code source, car pour l'instant tout marche."
+
+**Ce qui a été fait :**
+- Complétion de `tests/test_extractor.py` (nettoyage, extraction fichier texte, regex, email brut)
+- Correction de `tests/test_pipeline.py` pour l'aligner avec les fonctions réellement présentes (`_smart_merge`, `_empty_result`, `process_document`)
+- Ajout de `tests/test_normalizer.py` (dates, montants, téléphones, emails, agrégation des erreurs)
+- Exécution de la suite via `pytest`
+
+**Problème :** Un test supposait une priorité IA sur des champs où l'implémentation actuelle applique la priorité regex.
+**Solution :** Ajustement du test pour refléter le comportement réel, sans modifier le code métier.
+
+**Résultat :** `22 passed` (suite complète valide).
+
+**Ce qui a marché :** Approche "adapter les tests au comportement actuel" pour sécuriser sans régression fonctionnelle.
+**Ce qui a échoué :** Hypothèse initiale des tests non alignée avec la stratégie de merge réellement codée.
+
+**Apprentissage :** Les tests doivent décrire le comportement observé du système, pas l'intention supposée.
+
+---
+
+## Session 6 — Finalisation GitHub et clôture
+
+**Objectif :** Pousser les derniers éléments et vérifier la synchronisation complète avec le dépôt distant
+
+**Prompt utilisé :**
+> "Push tout le reste qui n'est pas pusher."
+
+**Ce qui a été fait :**
+- Push du commit tests (`test: tests unitaires extracteurs, pipeline et normalizer`)
+- Push final du dernier changement restant (`chore: update local extraction database`)
+- Vérification finale : branche `main` à jour avec `origin/main`, working tree clean
+
+**Point d'attention :** `data/extractions.db` a été versionné et poussé.
+**Recommandation pour la suite :** Ajouter ce fichier au `.gitignore` si la base doit rester strictement locale (et le retirer du suivi Git ensuite).
+
+**Apprentissage :** Avant chaque commit, vérifier `git status` pour éviter de pousser des artefacts locaux non essentiels.
+
+---
+
+## Suite finale proposée (checklist de clôture)
+
+- [ ] Vérifier que `JOURNAL.md` et `journal.md` sont cohérents (nommage unique recommandé)
+- [ ] Décider officiellement du statut de `data/extractions.db` : versionné ou ignoré
+- [ ] Ajouter une section "Installation rapide" dans le README (venv + dépendances + run)
+- [ ] Ajouter une section "Limites connues" (Python 3.14, warning Groq/Pydantic, warning labels Streamlit)
+- [ ] Créer un tag de version MVP (`v1.0.0`) après validation finale
+
+**État global du projet :** MVP fonctionnel, testé et synchronisé sur GitHub.

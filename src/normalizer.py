@@ -164,7 +164,9 @@ def normalize_telephone(raw: str) -> str:
     if not raw:
         return "ERREUR: téléphone vide"
 
-    digits = re.sub(r"[\s\.\-\(\)]", "", raw)
+    # Corrige quelques confusions OCR fréquentes avant normalisation.
+    raw = raw.strip().replace("O", "0").replace("o", "0")
+    digits = re.sub(r"[^\d\+]", "", raw)
 
     if digits.startswith("+33") and len(digits) == 12:
         return digits
@@ -174,6 +176,8 @@ def normalize_telephone(raw: str) -> str:
             return digits
     if digits.startswith("0") and len(digits) == 10:
         return "+33" + digits[1:]
+    if digits.isdigit() and len(digits) == 9:
+        return "+33" + digits
 
     return f"ERREUR: format de téléphone non reconnu '{raw}' (attendu: 06 XX XX XX XX ou +33XXXXXXXXX)"
 

@@ -5,3 +5,5 @@ streamlit==1.35.0
 jsonschema==4.22.0
 python-dotenv==1.0.1
 regex==2024.4.16
+pillow==11.1.0
+pytesseract==0.3.13

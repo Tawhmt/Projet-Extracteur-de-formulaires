@@ -12,6 +12,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+OCR_DIGIT_MAP = str.maketrans({
+    "O": "0", "o": "0", "Q": "0", "D": "0",
+    "I": "1", "l": "1", "|": "1",
+    "S": "5", "s": "5",
+})
+
 
 # ── 1. Patterns universels (fonctionnent sur tout type de texte) ──────────────
 REGEX_PATTERNS = {
@@ -22,7 +28,7 @@ REGEX_PATTERNS = {
         re.IGNORECASE
     ),
     "telephone": re.compile(
-        r"(?:\+33|0033|0)\s*[1-9](?:[\s.\-]?\d{2}){4}"
+        r"(?:\+33|0033|0)[\s.\-]?(?:\d[\s.\-]?){8,10}"
     ),
     "date": re.compile(
         r"\b(?:\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}"
@@ -34,7 +40,7 @@ REGEX_PATTERNS = {
     "montant": re.compile(
         r"\b\d+(?:[.\s,]\d{3})*(?:[.,]\d{1,2})?\s*(?:€|EUR|euros?)\b"
         r"|\b(?:€|EUR)\s*\d+(?:[.,]\d{1,2})?\b"
-        r"|(?:montant|somme|prix|total)\s*(?:demandé|total|:)?\s*:?\s*([\d\s.,]+(?:€|EUR|euros?))",
+        r"|(?:montant|somme|prix|total)\s*(?:demand[ée]|total|:)?\s*:?\s*([\d\s.,]+(?:€|EUR|euros?)?)",
         re.IGNORECASE,
     ),
     "numero_dossier": re.compile(
@@ -114,6 +120,13 @@ def regex_extract_fields(text: str) -> dict:
         else:
             results[field] = None
 
+    # Fallback OCR : quand le regex universel ne capte pas le téléphone,
+    # on tente une extraction depuis une ligne "Téléphone: ..." bruitée.
+    if not results.get("telephone"):
+        tel_fallback = _extract_phone_from_labeled_line(text)
+        if tel_fallback:
+            results["telephone"] = tel_fallback
+
     # ── Patterns formulaire (Label : Valeur) ──────────────────────────────────
     for field, pattern in FORM_LABEL_PATTERNS.items():
         # Ignorer le pattern spécial nom_libre ici
@@ -143,3 +156,30 @@ def regex_extract_fields(text: str) -> dict:
     found = sum(1 for v in results.values() if v)
     logger.info(f"[regex total] {found}/{len(results)} champs détectés")
     return results
+
+
+def _extract_phone_from_labeled_line(text: str) -> str | None:
+    label_pattern = re.compile(
+        r"(?:t[ée]l(?:[ée]phone)?|telephone|mobile|phone)\s*[:\-]?\s*([^\n\r]+)",
+        re.IGNORECASE,
+    )
+
+    match = label_pattern.search(text)
+    if not match:
+        return None
+
+    raw_value = match.group(1).strip().translate(OCR_DIGIT_MAP)
+    cleaned = re.sub(r"[^\d\+]", "", raw_value)
+
+    if cleaned.startswith("0033"):
+        cleaned = "+33" + cleaned[4:]
+
+    # Cas OCR fréquent : le 0 initial disparaît -> 9 chiffres au lieu de 10.
+    if cleaned and cleaned[0].isdigit() and not cleaned.startswith("0") and len(cleaned) == 9:
+        cleaned = "0" + cleaned
+
+    digits_count = len(re.sub(r"\D", "", cleaned))
+    if digits_count < 9:
+        return None
+
+    return cleaned

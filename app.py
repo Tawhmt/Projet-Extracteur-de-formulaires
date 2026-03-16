@@ -292,6 +292,34 @@ textarea:focus {
 
 /* ── SPINNER ── */
 [data-testid="stSpinner"] * { color: #7ab0c8 !important; }
+
+/* ── TABLES COMPACTES (MODE DOSSIER) ── */
+.mini-table-wrap {
+    overflow-x: auto;
+    margin: 8px 0 10px;
+}
+.mini-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fffdf9;
+}
+.mini-table th {
+    padding: 5px 10px;
+    font-size: 0.68rem;
+    color: #8a9aaa;
+    font-weight: 500;
+    text-align: left;
+    border-bottom: 2px solid #e8ddd0;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+.mini-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #f0e8e0;
+    font-size: 0.72rem;
+    color: #3a3a4a;
+    vertical-align: top;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -306,12 +334,135 @@ if "logs" not in st.session_state:
     ]
 if "last_result" not in st.session_state:
     st.session_state.last_result = None
+if "multi_report" not in st.session_state:
+    st.session_state.multi_report = None
+if "multi_selected_profile" not in st.session_state:
+    st.session_state.multi_selected_profile = ""
 
 def add_log(level, msg):
     ts = time.strftime("%H:%M")
     st.session_state.logs.append((level, msg, ts))
     if len(st.session_state.logs) > 40:
         st.session_state.logs = st.session_state.logs[-40:]
+
+
+def _guess_source_type(filename: str) -> str:
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        return "pdf"
+    if ext in (".eml", ".msg"):
+        return "email"
+    if ext in (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"):
+        return "image"
+    return "text"
+
+
+def _consolidate_batch_results(items):
+    field_values = {f: [] for f in config.FIELDS_TO_EXTRACT}
+    sources = {f: [] for f in config.FIELDS_TO_EXTRACT}
+
+    for item in items:
+        fields = item.get("fields", {})
+        src = item.get("source_name", "?")
+        for field in config.FIELDS_TO_EXTRACT:
+            value = fields.get(field)
+            if value:
+                normalized = str(value).strip()
+                field_values[field].append(normalized)
+                sources[field].append((src, normalized))
+
+    consolidated = {}
+    conflicts = {}
+    rows = []
+
+    for field in config.FIELDS_TO_EXTRACT:
+        values = field_values[field]
+        if not values:
+            consolidated[field] = None
+            rows.append({
+                "champ": field,
+                "valeur_finale": "—",
+                "sources": "—",
+                "conflit": "non",
+            })
+            continue
+
+        counts = {}
+        for v in values:
+            counts[v] = counts.get(v, 0) + 1
+        best_value = max(counts, key=counts.get)
+        consolidated[field] = best_value
+
+        unique_vals = list(counts.keys())
+        is_conflict = len(unique_vals) > 1
+        if is_conflict:
+            conflicts[field] = unique_vals
+
+        src_text = " | ".join([f"{s}: {v}" for s, v in sources[field][:4]])
+        rows.append({
+            "champ": field,
+            "valeur_finale": best_value,
+            "sources": src_text,
+            "conflit": "oui" if is_conflict else "non",
+        })
+
+    found = sum(1 for f in config.FIELDS_TO_EXTRACT if consolidated.get(f))
+    completeness = found / max(1, len(config.FIELDS_TO_EXTRACT))
+    conflict_ratio = len(conflicts) / max(1, len(config.FIELDS_TO_EXTRACT))
+    score = int(max(0, min(100, (0.7 * completeness + 0.3 * (1 - conflict_ratio)) * 100)))
+
+    return {
+        "fields": consolidated,
+        "conflicts": conflicts,
+        "score": score,
+        "rows": rows,
+    }
+
+
+def _build_multi_profile_report(items):
+    groups = {}
+
+    for item in items:
+        fields = item.get("fields", {})
+        dossier = str(fields.get("numero_dossier") or "").strip()
+        nom = str(fields.get("nom") or "").strip()
+        prenom = str(fields.get("prenom") or "").strip()
+
+        if dossier:
+            key = f"Dossier {dossier}"
+        elif nom or prenom:
+            full = f"{prenom} {nom}".strip()
+            key = f"Profil {full}"
+        else:
+            key = f"Source {item.get('source_name', '?')}"
+
+        groups.setdefault(key, []).append(item)
+
+    profiles = []
+    for label, group_items in groups.items():
+        rep = _consolidate_batch_results(group_items)
+        rep["label"] = label
+        rep["doc_count"] = len(group_items)
+        rep["documents"] = [x.get("source_name", "?") for x in group_items]
+        profiles.append(rep)
+
+    profiles = sorted(profiles, key=lambda p: p["label"])
+    avg_score = int(sum(p["score"] for p in profiles) / max(1, len(profiles)))
+
+    return {
+        "profiles": profiles,
+        "profile_count": len(profiles),
+        "global_score": avg_score,
+        "total_docs": len(items),
+    }
+
+
+def _render_compact_table(df: pd.DataFrame):
+    if df.empty:
+        st.markdown('<div class="empty-state"><span class="empty-icon">•</span><span>Aucune donnée</span></div>', unsafe_allow_html=True)
+        return
+    table_html = df.to_html(index=False, border=0, classes="mini-table", escape=False)
+    st.markdown(f'<div class="mini-table-wrap">{table_html}</div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ZONE 1 — BANNER
@@ -361,7 +512,7 @@ col1, col2, col3 = st.columns([1, 1, 1], gap="medium")
 with col1:
     st.markdown('<div class="card"><div class="card-title">🗂 Source du document</div>', unsafe_allow_html=True)
 
-    tab_pdf, tab_email, tab_text = st.tabs(["PDF", "Email", "Texte"])
+    tab_pdf, tab_email, tab_text, tab_image, tab_batch = st.tabs(["PDF", "Email", "Texte", "Image", "Dossier"])
 
     with tab_pdf:
         uploaded = st.file_uploader("", type=["pdf"], label_visibility="collapsed")
@@ -375,6 +526,7 @@ with col1:
                         add_log("INFO", f"Lecture PDF : {uploaded.name}")
                         result = process_document(tmp_path, "pdf")
                         st.session_state.last_result = result
+                        st.session_state.multi_report = None
                         fields = result.get("fields", result)
                         found = sum(1 for f in config.FIELDS_TO_EXTRACT if fields.get(f))
                         add_log("OK", f"{found}/{len(config.FIELDS_TO_EXTRACT)} champs extraits")
@@ -395,6 +547,7 @@ with col1:
                         add_log("INFO", "Lecture email…")
                         result = process_document(email_text, "text")
                         st.session_state.last_result = result
+                        st.session_state.multi_report = None
                         add_log("OK", "Extraction email terminée")
                     except Exception as e:
                         add_log("ERR", str(e))
@@ -411,12 +564,88 @@ with col1:
                         add_log("INFO", "Lecture texte libre…")
                         result = process_document(free_text, "text")
                         st.session_state.last_result = result
+                        st.session_state.multi_report = None
                         add_log("OK", "Extraction texte terminée")
                     except Exception as e:
                         add_log("ERR", str(e))
                 st.rerun()
             else:
                 add_log("WARN", "Aucun contenu texte")
+
+    with tab_image:
+        image_file = st.file_uploader("", type=["png", "jpg", "jpeg", "bmp", "tif", "tiff"], label_visibility="collapsed")
+        if st.button("Extraire les données →", key="go_image"):
+            if image_file:
+                with st.spinner("OCR + extraction en cours…"):
+                    suffix = Path(image_file.name).suffix or ".png"
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                        tmp.write(image_file.read())
+                        tmp_path = tmp.name
+                    try:
+                        add_log("INFO", f"Lecture image (OCR) : {image_file.name}")
+                        result = process_document(tmp_path, "image")
+                        st.session_state.last_result = result
+                        st.session_state.multi_report = None
+                        fields = result.get("fields", result)
+                        found = sum(1 for f in config.FIELDS_TO_EXTRACT if fields.get(f))
+                        add_log("OK", f"OCR terminé : {found}/{len(config.FIELDS_TO_EXTRACT)} champs extraits")
+                    except Exception as e:
+                        add_log("ERR", str(e))
+                    finally:
+                        os.unlink(tmp_path)
+                st.rerun()
+            else:
+                add_log("WARN", "Aucune image sélectionnée")
+
+    with tab_batch:
+        batch_files = st.file_uploader(
+            "",
+            type=["pdf", "eml", "msg", "txt", "png", "jpg", "jpeg", "bmp", "tif", "tiff"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+        )
+        if st.button("Analyser le dossier →", key="go_batch"):
+            if batch_files:
+                with st.spinner("Analyse multi-documents en cours…"):
+                    batch_results = []
+                    for file in batch_files:
+                        suffix = Path(file.name).suffix or ".txt"
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                            tmp.write(file.read())
+                            tmp_path = tmp.name
+
+                        try:
+                            source_type = _guess_source_type(file.name)
+                            item_result = process_document(tmp_path, source_type)
+                            item_fields = item_result.get("fields", item_result)
+                            batch_results.append({
+                                "source_name": file.name,
+                                "source_type": source_type,
+                                "fields": item_fields,
+                            })
+                            add_log("INFO", f"Doc analysé : {file.name} ({source_type})")
+                        except Exception as e:
+                            add_log("ERR", f"{file.name}: {e}")
+                        finally:
+                            os.unlink(tmp_path)
+
+                    if batch_results:
+                        report = _build_multi_profile_report(batch_results)
+                        st.session_state.multi_report = report
+                        first_profile = report["profiles"][0] if report["profiles"] else None
+                        if first_profile:
+                            st.session_state.last_result = {"fields": first_profile["fields"], "_errors": {}}
+                            st.session_state.multi_selected_profile = first_profile["label"]
+                        add_log(
+                            "OK",
+                            (
+                                f"Dossier analysé : {report['profile_count']} profil(s), "
+                                f"score global {report['global_score']}/100"
+                            ),
+                        )
+                st.rerun()
+            else:
+                add_log("WARN", "Aucun fichier dans le dossier")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -425,7 +654,102 @@ with col1:
 with col2:
     st.markdown('<div class="card"><div class="card-title">✦ Champs extraits</div>', unsafe_allow_html=True)
 
-    result = st.session_state.last_result
+    multi_report = st.session_state.multi_report
+    if multi_report:
+        if "profiles" in multi_report:
+            st.markdown(f"""
+            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                <span style="background:#eef7f0;color:#3a8a5a;border-radius:50px;
+                             padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                    ✓ Score global : {multi_report['global_score']}/100
+                </span>
+                <span style="background:#eaf4fb;color:#2a5a7a;border-radius:50px;
+                             padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                    ◎ Profils détectés : {multi_report['profile_count']}
+                </span>
+                <span style="background:#f5f2ee;color:#9a9080;border-radius:50px;
+                             padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                    ○ Documents : {multi_report['total_docs']}
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            overview_rows = [
+                {
+                    "profil": p["label"],
+                    "score": p["score"],
+                    "conflits": len(p["conflicts"]),
+                    "documents": p["doc_count"],
+                }
+                for p in multi_report["profiles"]
+            ]
+            df_overview = pd.DataFrame(overview_rows)
+            _render_compact_table(df_overview)
+
+            labels = [p["label"] for p in multi_report["profiles"]]
+            default_idx = 0
+            if st.session_state.multi_selected_profile in labels:
+                default_idx = labels.index(st.session_state.multi_selected_profile)
+            selected_label = st.selectbox("Profil à inspecter", labels, index=default_idx)
+            st.session_state.multi_selected_profile = selected_label
+
+            selected_profile = next((p for p in multi_report["profiles"] if p["label"] == selected_label), None)
+            if selected_profile:
+                st.markdown(f"""
+                <div style="display:flex;gap:10px;margin:10px 0 12px;flex-wrap:wrap;">
+                    <span style="background:#eef7f0;color:#3a8a5a;border-radius:50px;
+                                 padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                        ✓ Score profil : {selected_profile['score']}/100
+                    </span>
+                    <span style="background:#fdf0ee;color:#c06050;border-radius:50px;
+                                 padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                        ✗ Conflits profil : {len(selected_profile['conflicts'])}
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+                df_profile = pd.DataFrame(selected_profile["rows"])
+                _render_compact_table(df_profile)
+                st.download_button(
+                    "⬇ Rapport profil",
+                    data=json.dumps(selected_profile, ensure_ascii=False, indent=2),
+                    file_name="rapport_profil.json",
+                    mime="application/json",
+                )
+                st.download_button(
+                    "⬇ Rapport global",
+                    data=json.dumps(multi_report, ensure_ascii=False, indent=2),
+                    file_name="rapport_consolidation.json",
+                    mime="application/json",
+                )
+                result = {"fields": selected_profile["fields"], "_errors": {}}
+            else:
+                result = st.session_state.last_result
+        else:
+            st.markdown(f"""
+            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                <span style="background:#eef7f0;color:#3a8a5a;border-radius:50px;
+                             padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                    ✓ Score cohérence : {multi_report['score']}/100
+                </span>
+                <span style="background:#fdf0ee;color:#c06050;border-radius:50px;
+                             padding:3px 12px;font-size:0.72rem;font-weight:500;">
+                    ✗ Conflits : {len(multi_report['conflicts'])}
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            df_compare = pd.DataFrame(multi_report["rows"])
+            _render_compact_table(df_compare)
+            st.download_button(
+                "⬇ Rapport consolidation",
+                data=json.dumps(multi_report, ensure_ascii=False, indent=2),
+                file_name="rapport_consolidation.json",
+                mime="application/json",
+            )
+            st.markdown("<hr style='margin:14px 0;border:none;border-top:1px solid #e8ddd0;'/>", unsafe_allow_html=True)
+            result = st.session_state.last_result
+    else:
+        result = st.session_state.last_result
     if result:
         fields = result.get("fields", result)
         errors = result.get("_errors", {})
