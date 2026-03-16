@@ -107,7 +107,7 @@ Document Input (PDF / Email / Texte)
 - Vérification de la cohérence des données pour tous les types de formulaires
 - Gestion des fichiers multiples et suivi des documents traités
 
-### Amélioration appliquées (évolution du projet)
+### Amélioration appliquées 
 
 - Ajout de l'extraction OCR image (PNG/JPG/JPEG/BMP/TIF/TIFF) via Tesseract + `pytesseract`
 - Ajout d'un extracteur dédié OCR image et intégration au pipeline principal
@@ -204,6 +204,8 @@ Le système :
 ---
 
 ## Tests
+
+Pour tester rapidement l'application, vous trouverez des formulaires PDF d'exemple dans le dossier `fichiers/`.
 
 ```powershell
 venv\Scripts\python.exe -m pytest -q
