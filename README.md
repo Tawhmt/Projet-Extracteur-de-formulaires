@@ -95,8 +95,6 @@ Document Input (PDF / Email / Texte)
 ---
 
 ## Ce que je ne ferai pas (scope négatif)
-
-- Pas de traitement des images ou PDFs scannés pour le MVP
 - Pas de correction automatique des champs manquants ou douteux
 - Pas de règles métier complexes (IBAN, validation de dates avancées)
 
@@ -107,8 +105,117 @@ Document Input (PDF / Email / Texte)
 - Certains documents peuvent être mal formatés ou contenir des informations incomplètes
 - L'extraction exacte des champs peut être difficile si le texte est ambigu
 - Vérification de la cohérence des données pour tous les types de formulaires
-- Gestion des fichiers multiples et suivi des documents traitésgit add README.md JOURNAL.md
-git commit -m "docs: maj session 2"
-git push
+- Gestion des fichiers multiples et suivi des documents traités
+
+### Amélioration appliquées (évolution du projet)
+
+- Ajout de l'extraction OCR image (PNG/JPG/JPEG/BMP/TIF/TIFF) via Tesseract + `pytesseract`
+- Ajout d'un extracteur dédié OCR image et intégration au pipeline principal
+- Ajout de l'onglet **Image** dans l'interface Streamlit
+- Renforcement de la robustesse OCR (fallback langues, prétraitement, chemin auto de `tesseract.exe`)
+- Amélioration de l'extraction `telephone`/`montant` pour les textes OCR bruités
+- Ajout du mode **Dossier** (analyse multi-documents)
+- Consolidation multi-sources avec score de cohérence + détection de conflits
+- Détection automatique de plusieurs profils/dossiers dans un même batch
+- Export des rapports JSON (profil + global)
+- Finitions UI du mode Dossier (tableaux compacts, suppression des blocs visuels vides)
+- Ajout/complétion des tests unitaires (extracteurs, pipeline, normalizer)
+- Base SQLite locale retirée du suivi Git et ignorée via `.gitignore`
+
+---
+
+## Mise à jour fonctionnelle (version actuelle)
+
+Le projet inclut maintenant des fonctionnalités supplémentaires au MVP initial :
+
+- OCR image (PNG/JPG/JPEG/BMP/TIF/TIFF) via Tesseract + `pytesseract`
+- Support des documents scannés via l'onglet **Image** dans l'interface
+- Mode **Dossier** (analyse multi-documents)
+- Consolidation intelligente par champ avec score de cohérence
+- Détection automatique de plusieurs profils/dossiers dans un même batch
+- Rapport exportable JSON (global + profil)
+
+---
+
+## Installation rapide
+
+### 1) Cloner et créer l'environnement
+
+```powershell
+git clone https://github.com/Tawhmt/Projet-Extracteur-de-formulaires.git
+cd Projet-Extracteur-de-formulaires
+python -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+### 2) Installer les dépendances Python
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 3) Installer OCR (Windows)
+
+- Installer Tesseract OCR (build UB Mannheim)
+- Vérifier dans PowerShell :
+
+```powershell
+tesseract --version
+```
+
+### 4) Configurer les variables d'environnement
+
+```powershell
+copy .env.example .env
+```
+
+Renseigner la clé `GROQ_API_KEY` dans `.env`.
+
+### 5) Lancer l'application
+
+```powershell
+venv\Scripts\python.exe -m streamlit run app.py
+```
+
+---
+
+## Mode Dossier (feature "wow")
+
+L'onglet **Dossier** permet de charger plusieurs fichiers hétérogènes d'un coup.
+
+Le système :
+
+1. analyse chaque document séparément,
+2. regroupe automatiquement les résultats par `numero_dossier` (ou `nom/prenom` en fallback),
+3. calcule un score global,
+4. calcule un score par profil,
+5. signale les conflits de valeurs,
+6. exporte les rapports JSON.
+
+---
+
+## Limites connues
+
+- Python 3.14 : warning de compatibilité côté dépendance Groq/Pydantic v1
+- Streamlit : warning d'accessibilité si labels vides (`label_visibility="collapsed"`)
+- OCR dépend de la qualité du scan/photo (netteté, contraste, orientation)
+- Certains champs OCR peuvent nécessiter des fallbacks regex supplémentaires selon les formats
+
+---
+
+## Tests
+
+```powershell
+venv\Scripts\python.exe -m pytest -q
+```
+
+Statut actuel : suite de tests passante.
+
+---
+
+## Notes Git
+
+- `data/extractions.db` est ignoré via `.gitignore` (base locale)
+- Les dossiers `data/uploads/` et `data/processed/` sont également ignorés
 
 

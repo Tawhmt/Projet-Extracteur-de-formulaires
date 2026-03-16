@@ -118,7 +118,53 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 
 ---
 
-## Session 5 — Complétion des tests et stabilisation
+## Session 5  — OCR Intelligent et Robustesse des Données Scannées
+**Objectif :** Ajouter une fonctionnalité "wow" de soutenance sans casser la base existante.
+
+**Prompt utilisé :**
+> "Ajoute le support OCR image, puis un mode dossier multi-documents avec consolidation, score et gestion des conflits."
+
+**Ce qui a été fait :**
+- Ajout de `src/extractors/image_extractor.py` (OCR via `pytesseract` + Tesseract)
+- Intégration OCR dans `pipeline.py` (`source_type = image`)
+- Ajout d'un onglet **Image** dans l'interface `app.py`
+- Ajout d'un onglet **Dossier** (upload multiple)
+- Consolidation multi-documents par champ
+- Score de cohérence global + score par profil
+- Détection automatique de plusieurs profils dans un batch :
+	- priorité au `numero_dossier`
+	- fallback sur `nom/prenom`
+- Export JSON rapport global + rapport profil
+
+**Problème 1 :** OCR renvoyait parfois vide car le binaire Tesseract n'était pas détecté dans certains contextes Python.
+**Solution :** Configuration automatique du chemin Windows standard de `tesseract.exe` dans l'extracteur image.
+
+**Problème 2 :** Le téléphone était mal lu sur OCR (ex: `O`/`0`, `I`/`1`, zéro initial manquant).
+**Solution :**
+- fallback regex dédié sur la ligne téléphone,
+- mapping des confusions OCR,
+- normalisation tolérante aux formats FR bruités (9/10 chiffres).
+
+**Problème 3 :** Le mode dossier mélangeait deux personnes différentes dans un seul résultat consolidé.
+**Solution :** Regroupement en profils séparés avant consolidation, avec sélection de profil à inspecter.
+
+**Problème 4 :** Artefacts visuels (carrés blancs) dans la carte résultats après analyse dossier.
+**Solution :** Passage à un rendu tableau compact dans le mode dossier.
+
+**Ce qui a marché :**
+- séparation correcte des profils,
+- extraction OCR exploitable sur images nettes,
+- score/cohérence très démonstratifs pour une soutenance.
+
+**Ce qui a échoué :**
+- première version de consolidation trop "agressive" (fusion inter-profils),
+- première version UI dossier avec composants qui réservaient trop d'espace.
+
+**Apprentissage :** Une feature impressionnante n'est pas juste visuelle : il faut aussi traçabilité, score, et gestion des conflits.
+
+---
+
+## Session 6 — Complétion des tests et stabilisation
 
 **Objectif :** Compléter la suite de tests sans modifier la logique applicative existante
 
@@ -143,12 +189,12 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 
 ---
 
-## Session 6 — Finalisation GitHub et clôture
+## Session 7 — Finalisation GitHub et clôture
 
 **Objectif :** Pousser les derniers éléments et vérifier la synchronisation complète avec le dépôt distant
 
 **Prompt utilisé :**
-> "Push tout le reste qui n'est pas pusher."
+> "aid emoi a identifier les fichier qui restnet a pusher et puis donns moi les commandes qu'il faut ."
 
 **Ce qui a été fait :**
 - Push du commit tests (`test: tests unitaires extracteurs, pipeline et normalizer`)
@@ -160,14 +206,8 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 
 **Apprentissage :** Avant chaque commit, vérifier `git status` pour éviter de pousser des artefacts locaux non essentiels.
 
----
 
-## Suite finale proposée (checklist de clôture)
 
-- [ ] Vérifier que `JOURNAL.md` et `journal.md` sont cohérents (nommage unique recommandé)
-- [ ] Décider officiellement du statut de `data/extractions.db` : versionné ou ignoré
-- [ ] Ajouter une section "Installation rapide" dans le README (venv + dépendances + run)
-- [ ] Ajouter une section "Limites connues" (Python 3.14, warning Groq/Pydantic, warning labels Streamlit)
-- [ ] Créer un tag de version MVP (`v1.0.0`) après validation finale
+
 
 **État global du projet :** MVP fonctionnel, testé et synchronisé sur GitHub.
