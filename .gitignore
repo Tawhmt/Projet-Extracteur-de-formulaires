@@ -15,6 +15,7 @@ build/
 # Données (trop lourdes pour GitHub)
 data/uploads/
 data/processed/
+data/extractions.db
 
 # Environnements virtuels
 venv/
