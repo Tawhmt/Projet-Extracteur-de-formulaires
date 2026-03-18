@@ -119,7 +119,7 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 ---
 
 ## Session 5  — OCR Intelligent et Robustesse des Données Scannées
-**Objectif :** Ajouter une fonctionnalité "wow" de soutenance sans casser la base existante.
+**Objectif :**  Rendre le projet un peu plus pertinant .
 
 **Prompt utilisé :**
 > "Ajoute le support OCR image, puis un mode dossier multi-documents avec consolidation, score et gestion des conflits."
@@ -160,6 +160,21 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 - première version de consolidation trop "agressive" (fusion inter-profils),
 - première version UI dossier avec composants qui réservaient trop d'espace.
 
+## Mode Dossier
+
+L'onglet **Dossier** permet de charger plusieurs fichiers hétérogènes d'un coup.
+
+Le système :
+
+1. analyse chaque document séparément,
+2. regroupe automatiquement les résultats par `numero_dossier` (ou `nom/prenom` en fallback),
+3. calcule un score global,
+4. calcule un score par profil,
+5. signale les conflits de valeurs,
+6. exporte les rapports JSON.
+
+---
+
 **Apprentissage :** Une feature impressionnante n'est pas juste visuelle : il faut aussi traçabilité, score, et gestion des conflits.
 
 ---
@@ -169,7 +184,7 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 **Objectif :** Compléter la suite de tests sans modifier la logique applicative existante
 
 **Prompt utilisé :**
-> "Complète les tests sans changer le code source, car pour l'instant tout marche."
+> "Complète les tests sans changer le code de base ."
 
 **Ce qui a été fait :**
 - Complétion de `tests/test_extractor.py` (nettoyage, extraction fichier texte, regex, email brut)
@@ -194,7 +209,7 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 **Objectif :** Pousser les derniers éléments et vérifier la synchronisation complète avec le dépôt distant
 
 **Prompt utilisé :**
-> "aid emoi a identifier les fichier qui restnet a pusher et puis donns moi les commandes qu'il faut ."
+> "aid emoi a identifier les fichier qui restent a pusher et puis donns moi les commandes qu'il faut ."
 
 **Ce qui a été fait :**
 - Push du commit tests (`test: tests unitaires extracteurs, pipeline et normalizer`)
@@ -206,8 +221,41 @@ Le regex détectait `"Dossier"` et l'envoyait à Groq en préfill → Groq faisa
 
 **Apprentissage :** Avant chaque commit, vérifier `git status` pour éviter de pousser des artefacts locaux non essentiels.
 
+---
 
+## Session 8 — Integration MCP + CLI et retour d'experience
 
+**Objectif :** Ajouter un vrai serveur MCP et une CLI propre pour usage terminal, puis documenter un avis critique.
 
+**Prompt utilise :**
+> "Dans la mesure où le professeur préfère l'environnement terminal et que je dispose déjà d'une base MCP, il me semblerait pertinent d'implémenter une CLI dédiée à cet usage"
 
-**État global du projet :** MVP fonctionnel, testé et synchronisé sur GitHub.
+**Ce qui a ete fait :**
+- Ajout de `src/mcp_server.py` avec un serveur MCP base sur `FastMCP`
+- Exposition de 3 outils MCP :
+	- `healthcheck`
+	- `extract_from_text(text)`
+	- `extract_from_file(file_path, source_type)`
+- Creation d'une nouvelle CLI modulaire `src/cli.py` avec sous-commandes :
+	- `extract`
+	- `test`
+	- `version`
+- Conservation de la compatibilite de `src/main.py` (wrapper vers la nouvelle CLI)
+- Mise a jour de la documentation dans le `README.md`
+- Ajout de la dependance `mcp` dans `requirements.txt`
+
+**Problèmes rencontres :**
+- Le projet avait deja une CLI minimale (`src/main.py`) mais sans sous-commandes ni mode test integre.
+- Le terme "MCP" etait confondu avec "utiliser un assistant"; en pratique il faut un serveur qui expose des outils standards.
+
+**Solutions :**
+- Refactor de la CLI en sous-commandes explicites pour un usage pro et demo.
+- Implementation d'un serveur MCP autonome, relie directement au pipeline existant, sans dupliquer la logique metier.
+
+**Avis personnel :**
+- La CLI apporte une vraie valeur pour automatiser des runs rapides, tester des documents, et integrer le projet dans des scripts.
+- Le MCP est tres pertinent pour brancher le projet a des clients IA/outils externes avec un protocole standard.
+- Point de vigilance: il faut bien preparer la doc de demarrage (commande, env, cle API) sinon l'integration MCP peut sembler complexe.
+- Globalement, cette evolution rend le projet plus "industrialise": meme pipeline, plusieurs interfaces (UI, CLI, MCP).
+
+**Apprentissage :** Un meme coeur metier doit etre expose par plusieurs points d'entree (interface graphique, CLI, protocole MCP) pour gagner en reutilisabilite et en robustesse.
